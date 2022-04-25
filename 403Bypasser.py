@@ -1,4 +1,4 @@
-from burp import IBurpExtender, IScanIssue, IScannerCheck, IContextMenuFactory, IContextMenuInvocation, ITab
+from burp import IBurpExtender, IContextMenuFactory, IContextMenuInvocation, ITab
 from javax.swing import JMenuItem
 from javax import swing
 from javax.swing import JPanel, JButton, JList, JTable, table, JLabel, JScrollPane, JTextField, WindowConstants, GroupLayout, LayoutStyle, JFrame
@@ -178,11 +178,11 @@ class uiTab(JFrame):
 
 
 
-class BurpExtender(IBurpExtender, IScannerCheck, IContextMenuFactory, ITab):
+class BurpExtender(IBurpExtender, IContextMenuFactory, ITab):
 	def registerExtenderCallbacks(self, callbacks):
+		print("helloworld111")
 		self.callbacks = callbacks
 		self.helpers = self.callbacks.getHelpers()
-		self.callbacks.registerScannerCheck(self)
 		self.callbacks.registerContextMenuFactory(self)
 		self.callbacks.setExtensionName(extentionName)
 
@@ -221,7 +221,8 @@ class BurpExtender(IBurpExtender, IScannerCheck, IContextMenuFactory, ITab):
 		if responseCode == 403:
 			return True
 		else:
-			return False
+			#return False
+			return True
 
 	def findAllCharIndexesInString(self,s, ch):
 		return [i for i, ltr in enumerate(s) if ltr == ch]
@@ -284,7 +285,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IContextMenuFactory, ITab):
 
 				issue = []
 				global requestNum
-				issue.append("<tr><td>" + str(requestNum) + "</td><td>" + vulnerableReuqestUrl.replace(payload, "<b>" + payload + "</b>") + "</td> <td>" + newRequestStatusCode + "</td> <td>" + resultContentLength + "</td></tr>")
+				issue.append("URL: " + vulnerableReuqestUrl + "\r\nStatus Code: " + newRequestStatusCode + "\r\nContent Length: " + resultContentLength)
 				issue.append(newRequestResult)
 				results.append(issue)
 				requestNum += 1
@@ -332,7 +333,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IContextMenuFactory, ITab):
 
 			issue = []
 			global requestNum
-			issue.append("<tr><td>" + str(requestNum) + "</td><td>header: " + payload + "</td> <td>" + newRequestStatusCode + "</td> <td>" + resultContentLength + "</td></tr>")
+			issue.append("URL: " + vulnerableReuqestUrl + "\r\nStatus Code: " + newRequestStatusCode + "\r\nContent Length: " + resultContentLength)
 			issue.append(newRequestResult)
 			results.append(issue)
 
@@ -347,125 +348,75 @@ class BurpExtender(IBurpExtender, IScannerCheck, IContextMenuFactory, ITab):
 
 	def doActiveScan(self, baseRequestResponse, insertionPoint, isCalledFromMenu=False):
 		response = self.helpers.analyzeResponse(baseRequestResponse.getResponse())
+		print("inside active scan")
 		if self.isInteresting(response) == False and isCalledFromMenu == False:
 			return None
 
 		else:
+			print("-----------------")
 			result = self.testRequest(baseRequestResponse)
+			print(result)
 			if result != None:
 				if isCalledFromMenu == True:
-					self.callbacks.addScanIssue(result[0])
+					print(result[0])
 				else:
-					return result
+					print(result)
 			else:
 				return None
 
 	def testRequest(self, baseRequestResponse):
-		queryPayloadsResults = []
-		headerPayloadsResults = []
-		httpService = baseRequestResponse.getHttpService()
+		try:
+			queryPayloadsResults = []
+			headerPayloadsResults = []
+			httpService = baseRequestResponse.getHttpService()
 
-		#test for query-based issues
-		queryPayloadsFromTable = []
-		for rowIndex in range(self.frm.queryPayloadsTable.getRowCount()):
-			queryPayloadsFromTable.append(str(self.frm.queryPayloadsTable.getValueAt(rowIndex, 0)))
+			#test for query-based issues
+			queryPayloadsFromTable = []
+			for rowIndex in range(self.frm.queryPayloadsTable.getRowCount()):
+				queryPayloadsFromTable.append(str(self.frm.queryPayloadsTable.getValueAt(rowIndex, 0)))
+			
+			for payload in queryPayloadsFromTable:
+				payload = payload.rstrip('\n')
+				result = self.tryBypassWithQueryPayload(baseRequestResponse, payload, httpService)
+				print(result)
+				if result != None:
+					queryPayloadsResults += result
 
-		for payload in queryPayloadsFromTable:
-			payload = payload.rstrip('\n')
-			result = self.tryBypassWithQueryPayload(baseRequestResponse, payload, httpService)
-			if result != None:
-				queryPayloadsResults += result
+			if len(queryPayloadsResults) > 0:
+				issueDetails = []
+				issueHttpMessages = []
+				issueHttpMessages.append(baseRequestResponse)
 
-		if len(queryPayloadsResults) > 0:
-			issueDetails = []
-			issueHttpMessages = []
-			issueHttpMessages.append(baseRequestResponse)
+				for issue in queryPayloadsResults:
+					issueDetails.append(issue[0])
+					issueHttpMessages.append(issue[1])
+				
+				print("inside test")
+				print("\r\n".join(issueDetails))
+				return "\r\n".join(issueDetails)
+			#test for header-based issues
+			headerPayloadsFromTable = []
+			for rowIndex in range(self.frm.headerPayloadsTable.getRowCount()):
+				headerPayloadsFromTable.append(str(self.frm.headerPayloadsTable.getValueAt(rowIndex, 0)))
 
-			for issue in queryPayloadsResults:
-				issueDetails.append(issue[0])
-				issueHttpMessages.append(issue[1])
+			for payload in headerPayloadsFromTable:
+				payload = payload.rstrip('\n')
+				result = self.tryBypassWithHeaderPayload(baseRequestResponse, payload, httpService)
+				if result != None:
+					headerPayloadsResults += result
 
-			return [CustomScanIssue(
-				httpService,
-				self.helpers.analyzeRequest(baseRequestResponse).getUrl(),
-				issueHttpMessages,
-				"Possible 403 Bypass",
-				"<table><tr><td>Request #</td><td>URL</td><td>Status Code</td><td>Content Length</td></tr>" + "".join(issueDetails) + "</table>",
-				"High",
-				)]
-		#test for header-based issues
-		headerPayloadsFromTable = []
-		for rowIndex in range(self.frm.headerPayloadsTable.getRowCount()):
-			headerPayloadsFromTable.append(str(self.frm.headerPayloadsTable.getValueAt(rowIndex, 0)))
+			if len(headerPayloadsResults) > 0:
+				issueDetails = []
+				issueHttpMessages = []
+				issueHttpMessages.append(baseRequestResponse)
 
-		for payload in headerPayloadsFromTable:
-			payload = payload.rstrip('\n')
-			result = self.tryBypassWithHeaderPayload(baseRequestResponse, payload, httpService)
-			if result != None:
-				headerPayloadsResults += result
-
-		if len(headerPayloadsResults) > 0:
-			issueDetails = []
-			issueHttpMessages = []
-			issueHttpMessages.append(baseRequestResponse)
-
-			for issue in headerPayloadsResults:
-				issueDetails.append(issue[0])
-				issueHttpMessages.append(issue[1])
-			return [CustomScanIssue(
-				httpService,
-				self.helpers.analyzeRequest(baseRequestResponse).getUrl(),
-				issueHttpMessages,
-				"Possible 403 Bypass - Header Based",
-				"<table><tr><td>Request #</td><td>URL</td><td>Status Code</td><td>Content Length</td></tr>" + "".join(issueDetails) + "</table>",
-				"High",
-				)]
+				for issue in headerPayloadsResults:
+					issueDetails.append(issue[0])
+					issueHttpMessages.append(issue[1])
+				print("inside test")
+				print("\r\n".join(issueDetails))
+				return "\r\n".join(issueDetails)
+		except Exception as e:
+			print(e)
+			return None
 		return None
-
-
-	def consolidateDuplicateIssues(self, existingIssue, newIssue):
-		if (existingIssue.getIssueDetail() == newIssue.getIssueDetail()):
-			return -1
-		else:
-			return 0
-
-class CustomScanIssue (IScanIssue):
-	def __init__(self, httpService, url, httpMessages, name, detail, severity):
-		self._httpService = httpService
-		self._url = url
-		self._httpMessages = httpMessages
-		self._name = name
-		self._detail = detail
-		self._severity = severity
-
-	def getUrl(self):
-		return self._url
-
-	def getIssueName(self):
-		return self._name
-
-	def getIssueType(self):
-		return 0
-
-	def getSeverity(self):
-		return self._severity
-
-	def getConfidence(self):
-		return "Firm"
-
-	def getIssueBackground(self):
-		return extentionName + " sent a request and got 403 response. " + extentionName + " sent another request and got 200 response, this may indicate a misconfiguration on the server side that allows access to forbidden pages."
-
-	def getRemediationBackground(self):
-		pass
-
-	def getIssueDetail(self):
-		return self._detail
-	def getRemediationDetail(self):
-		pass
-
-	def getHttpMessages(self):
-		return self._httpMessages
-
-	def getHttpService(self):
-		return self._httpService
