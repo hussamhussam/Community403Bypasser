@@ -221,8 +221,7 @@ class BurpExtender(IBurpExtender, IContextMenuFactory, ITab):
 		if responseCode == 403:
 			return True
 		else:
-			#return False
-			return True
+			return False
 
 	def findAllCharIndexesInString(self,s, ch):
 		return [i for i, ltr in enumerate(s) if ltr == ch]
