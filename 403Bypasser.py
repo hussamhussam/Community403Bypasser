@@ -284,7 +284,7 @@ class BurpExtender(IBurpExtender, IContextMenuFactory, ITab):
 
 				issue = []
 				global requestNum
-				issue.append("URL: " + vulnerableReuqestUrl + "\r\nStatus Code: " + newRequestStatusCode + "\r\nContent Length: " + resultContentLength)
+				issue.append("URL: " + vulnerableReuqestUrl + "\r\nStatus Code: " + newRequestStatusCode + "\r\nContent Length: " + resultContentLength+"\r\n------------------------")
 				issue.append(newRequestResult)
 				results.append(issue)
 				requestNum += 1
@@ -332,7 +332,7 @@ class BurpExtender(IBurpExtender, IContextMenuFactory, ITab):
 
 			issue = []
 			global requestNum
-			issue.append("URL: " + vulnerableReuqestUrl + "\r\nStatus Code: " + newRequestStatusCode + "\r\nContent Length: " + resultContentLength)
+			issue.append("URL: " + vulnerableReuqestUrl + "\r\nStatus Code: " + newRequestStatusCode + "\r\nContent Length: " + resultContentLength+"\r\n------------------------")
 			issue.append(newRequestResult)
 			results.append(issue)
 
